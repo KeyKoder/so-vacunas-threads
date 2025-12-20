@@ -4,8 +4,44 @@
 #include <unistd.h>
 #include <string.h>
 
+#define NUM_CENTROS_VACUNACION 5
+#define NUM_FABRICAS 3
+#define NUM_TANDAS 10
+
+#define MAX_LINE_LENGTH 10
+
 char* defaultInfileName = "entrada_vacunacion.txt";
 char* defaultOutfileName = "salida_vacunacion.txt";
+
+// TODO: Create global config struct to keep the initial parameters so all the threads can access them easily
+
+struct Config {
+    int totalHabitantes;
+    int initialVacunas;
+    
+    int minVacunasFabricadas;
+    int maxVacunasFabricadas;
+    
+    int minTiempoFabricacion;
+    int maxTiempoFabricacion;
+    int maxTiempoReparto;
+    
+    int maxTiempoReaccion;
+    int maxTiempoDespl;
+};
+
+typedef struct Config config_t;
+
+config_t config;
+
+// TODO: Read config from file
+void readConfig(char*);
+void printConfig();
+
+
+// TODO: Create helper function for rand() with min and max for convenience
+// TODO: Create structs(?) for vac. centers and suppliers
+// TODO: Implement producer-consumer logic
 
 int main(int argc, char** argv) {
     if(argc > 3) {
@@ -26,5 +62,33 @@ int main(int argc, char** argv) {
 
     printf("infile: %s\noutfile: %s\n", infileName, outfileName);
 
+
+    readConfig(infileName);
+    printConfig();
+
     exit(0);
+}
+
+
+void readConfig(char* filename) {
+    // TODO: Check if file exists before reading from it
+
+    FILE* file = fopen(filename, "r");
+    config = (config_t){};
+
+    char str[MAX_LINE_LENGTH];
+    int fieldIdx = 0;
+    
+    while(fgets(str, MAX_LINE_LENGTH, file) != NULL) {
+        // Index the corresponding field of the struct dynamically by doing pointer arithmetic
+        *((int*)&config+fieldIdx*sizeof(int)) = atoi(str);
+
+        fieldIdx++;
+    }
+
+    fclose(file);
+}
+
+void printConfig() {
+    printf("Habitantes: %d\nCentros de vacunación: %d\nFábricas: %d\nVacunados por tanda: %d\nVacunas iniciales en cada centro: %d\nVacunas totales por fábrica: %d\nMínimo número de vacunas fabricadas en cada tanda: %d\nMáximo número de vacunas fabricadas en cada tanda: %d\nTiempo mínimo de fabricación de una tanda de vacunas: %d\nTiempo máximo de fabricación de una tanda de vacunas: %d\nTiempo máximo de reparto de vacunas a los centros: %d\nTiempo máximo que un habitante tarda en ver que está citado para vacunarse: %d\nTiempo máximo de desplazamiento del habitante al centro de vacunación: %d\n", config.totalHabitantes, NUM_CENTROS_VACUNACION, NUM_FABRICAS, config.totalHabitantes/NUM_TANDAS, config.initialVacunas, config.totalHabitantes/NUM_FABRICAS, config.minVacunasFabricadas, config.maxVacunasFabricadas, config.minTiempoFabricacion, config.maxTiempoFabricacion, config.maxTiempoReparto, config.maxTiempoReaccion, config.maxTiempoDespl);
 }

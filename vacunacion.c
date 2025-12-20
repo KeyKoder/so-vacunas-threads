@@ -35,7 +35,7 @@ typedef struct Config config_t;
 config_t config;
 
 // TODO: Read config from file
-void readConfig(char*);
+int readConfig(char*);
 void printConfig();
 
 
@@ -63,17 +63,24 @@ int main(int argc, char** argv) {
     printf("infile: %s\noutfile: %s\n", infileName, outfileName);
 
 
-    readConfig(infileName);
+    if(!readConfig(infileName)) {
+        fprintf(stderr, "Error reading config file: %s\n", infileName);
+        exit(1);
+    }
     printConfig();
 
     exit(0);
 }
 
 
-void readConfig(char* filename) {
-    // TODO: Check if file exists before reading from it
-
-    FILE* file = fopen(filename, "r");
+// returns whether it could read the config file or not
+int readConfig(char* filename) {
+    FILE* file;
+    if (access(filename, F_OK) == 0) {
+        file = fopen(filename, "r");
+    }else {
+        return 0;
+    }
     config = (config_t){};
 
     char str[MAX_LINE_LENGTH];
@@ -87,6 +94,7 @@ void readConfig(char* filename) {
     }
 
     fclose(file);
+    return 1;
 }
 
 void printConfig() {

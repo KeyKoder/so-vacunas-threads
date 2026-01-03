@@ -1,0 +1,18 @@
+Fábrica 2 prepara 33 vacunas
+Fábrica 2 entrega 6 vacunas en el centro 1
+Fábrica 2 entrega 6 vacunas en el centro 2
+Fábrica 2 entrega 6 vacunas en el centro 3
+Fábrica 2 entrega 6 vacunas en el centro 4
+Fábrica 2 entrega 6 vacunas en el centro 5
+Fábrica 3 prepara 33 vacunas
+Fábrica 3 entrega 6 vacunas en el centro 1
+Fábrica 3 entrega 6 vacunas en el centro 2
+Fábrica 3 entrega 6 vacunas en el centro 3
+Fábrica 3 entrega 6 vacunas en el centro 4
+Fábrica 3 entrega 6 vacunas en el centro 5
+Fábrica 1 prepara 34 vacunas
+Fábrica 1 entrega 6 vacunas en el centro 1
+Fábrica 1 entrega 6 vacunas en el centro 2
+Fábrica 1 entrega 6 vacunas en el centro 3
+Fábrica 1 entrega 6 vacunas en el centro 4
+Fábrica 1 entrega 6 vacunas en el centro 5

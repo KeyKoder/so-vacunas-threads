@@ -6,7 +6,7 @@
 #include <limits.h>
 
 // Defining a macro to make it more comfortable to print to stdout and the output file
-#define LOG(fp, fmt...) printf(fmt); fprintf(fp, fmt)
+#define LOG(fmt...) printf(fmt); fprintf(outfile, fmt)
 
 #define NUM_CENTROS_VACUNACION 5
 #define NUM_FABRICAS 3
@@ -106,9 +106,9 @@ int main(int argc, char** argv) {
 
     outfile = fopen(outfileName, "w");
 
-    printf("VACUNACIÓN EN PANDEMIA: CONFIGURACIÓN INICIAL\n");
+    LOG("VACUNACIÓN EN PANDEMIA: CONFIGURACIÓN INICIAL\n");
     printConfig();
-    printf("\nPROCESO DE VACUNACIÓN\n");
+    LOG("\nPROCESO DE VACUNACIÓN\n");
 
     // Seed the random number generator
     srand(time(NULL));
@@ -132,7 +132,7 @@ int main(int argc, char** argv) {
         pthread_join(fabricas[i].tid, NULL);
     }
 
-    printf("Vacunación finalizada\n");
+    LOG("Vacunación finalizada\n");
 
     fclose(outfile);
     exit(0);
@@ -169,7 +169,7 @@ int readConfig(char* filename) {
 }
 
 void printConfig() {
-    printf("Habitantes: %d\nCentros de vacunación: %d\nFábricas: %d\nVacunados por tanda: %d\nVacunas iniciales en cada centro: %d\nVacunas totales por fábrica: %d\nMínimo número de vacunas fabricadas en cada tanda: %d\nMáximo número de vacunas fabricadas en cada tanda: %d\nTiempo mínimo de fabricación de una tanda de vacunas: %d\nTiempo máximo de fabricación de una tanda de vacunas: %d\nTiempo máximo de reparto de vacunas a los centros: %d\nTiempo máximo que un habitante tarda en ver que está citado para vacunarse: %d\nTiempo máximo de desplazamiento del habitante al centro de vacunación: %d\n", 
+    LOG("Habitantes: %d\nCentros de vacunación: %d\nFábricas: %d\nVacunados por tanda: %d\nVacunas iniciales en cada centro: %d\nVacunas totales por fábrica: %d\nMínimo número de vacunas fabricadas en cada tanda: %d\nMáximo número de vacunas fabricadas en cada tanda: %d\nTiempo mínimo de fabricación de una tanda de vacunas: %d\nTiempo máximo de fabricación de una tanda de vacunas: %d\nTiempo máximo de reparto de vacunas a los centros: %d\nTiempo máximo que un habitante tarda en ver que está citado para vacunarse: %d\nTiempo máximo de desplazamiento del habitante al centro de vacunación: %d\n", 
         config.totalHabitantes, 
         NUM_CENTROS_VACUNACION, 
         NUM_FABRICAS, 
@@ -212,7 +212,7 @@ void* supplier(void* args) {
         
         int numFab = randInt(config.minVacunasFabricadas, config.maxVacunasFabricadas);
         printf("%s", fabricasColor[selfIdx]);
-        LOG(outfile, "Fábrica %d prepara %d vacunas\n", selfIdx+1, numFab);
+        LOG("Fábrica %d prepara %d vacunas\n", selfIdx+1, numFab);
         printf("%s", CLEAR_COLOR);
 
         // Tiempo en repartir
@@ -228,7 +228,7 @@ void* supplier(void* args) {
 
             centros[i].numVacunas += vacunasRepartir;
             printf("%s", fabricasColor[selfIdx]);
-            LOG(outfile, "Fábrica %d entrega %d vacunas en el centro %d\n", selfIdx+1, vacunasRepartir, i+1);
+            LOG("Fábrica %d entrega %d vacunas en el centro %d\n", selfIdx+1, vacunasRepartir, i+1);
             printf("%s", CLEAR_COLOR);
             
             fabricas[selfIdx].vacunasEntregadasPorCentro[i] += vacunasRepartir;

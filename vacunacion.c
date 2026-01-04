@@ -13,15 +13,18 @@
 #define NUM_TANDAS 10
 
 #define MIN_TIEMPO_REPARTO 1
+#define MIN_TIEMPO_REACCION 1
+#define MIN_TIEMPO_DESPLAZAMIENTO 1
 
 #define MAX_LINE_LENGTH 1024
 
 #define CLEAR_COLOR "\x1b[0m"
 
+// TRIPLE BAKA!!!
 char* fabricasColor[NUM_FABRICAS] = {
-    "\x1b[38;2;240;209;75m",
-    "\x1b[38;2;27;189;207m",
-    "\x1b[38;2;206;111;133m"
+    "\x1b[38;2;240;209;75m", // NERU
+    "\x1b[38;2;27;189;207m", // MIKU
+    "\x1b[38;2;206;111;133m" // TETO
 };
 
 char* defaultInfileName = "entrada_vacunacion.txt";
@@ -56,7 +59,15 @@ int randInt(int min, int max);
 
 // TODO: Create structs(?) for vac. centers and suppliers
 struct VacCenter {
+    pthread_t tid;
+
+    pthread_mutex_t mutex;
+    pthread_mutex_t mutexFabricas;
+
     int numVacunas;
+
+    int habitantesEnCola;
+
     int totalVacunasRecibidas;
     int totalVacunados;
 };
@@ -77,8 +88,11 @@ typedef struct VacSupplier vacsupplier_t;
 
 vacsupplier_t fabricas[NUM_FABRICAS];
 
+pthread_t* habitantes;
+
 // TODO: Implement producer-consumer logic
 void* supplier(void* args);
+void* habitante(void* args);
 
 int main(int argc, char** argv) {
     char* infileName = defaultInfileName;
@@ -113,26 +127,59 @@ int main(int argc, char** argv) {
     // Seed the random number generator
     srand(time(NULL));
 
+    habitantes = malloc(config.totalHabitantes/NUM_TANDAS*sizeof(pthread_t));
+
+
     for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
         centros[i] = (vaccenter_t){};
         centros[i].numVacunas = config.initialVacunas;
+        pthread_mutex_init(&centros[i].mutex, NULL);
+        pthread_mutex_init(&centros[i].mutexFabricas, NULL);
+        // pthread_create(&centros[i].tid, NULL, centro, &i);
     }
     
     for(int i=0;i<NUM_FABRICAS;i++) {
         fabricas[i] = (vacsupplier_t){};
-        pthread_create(&fabricas[i].tid, NULL, supplier, &i);
+        pthread_create(&fabricas[i].tid, NULL, supplier, (void*)&i);
     }
 
-    // for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
-    //     centros[i] = (vaccenter_t){};
-    //     centros[i].numVacunas = config.initialVacunas;
-    // }
+    int numHab = -1;
+    for(int t=0;t<NUM_TANDAS;t++) {
+        for(int i=0;i<config.totalHabitantes/NUM_TANDAS;i++) {
+            numHab++;
+            pthread_create(habitantes+i, NULL, habitante, (void*)&numHab);
+        }
+        for(int i=0;i<config.totalHabitantes/NUM_TANDAS;i++) {
+            pthread_join(habitantes[i], NULL);
+        }
+    }
+
+    for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+        // pthread_join(centros[i].tid, NULL);
+        pthread_mutex_destroy(&centros[i].mutex);
+        pthread_mutex_destroy(&centros[i].mutexFabricas);
+    }
     
     for(int i=0;i<NUM_FABRICAS;i++) {
         pthread_join(fabricas[i].tid, NULL);
     }
 
     LOG("Vacunación finalizada\n");
+
+    for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+        LOG("El centro %d ha recibido %d vacunas, ha vacunado a %d habitantes y le han sobrado %d vacunas\n",
+            i,
+            centros[i].totalVacunasRecibidas,
+            centros[i].totalVacunados,
+            centros[i].numVacunas);
+    }
+    
+    for(int i=0;i<NUM_FABRICAS;i++) {
+        LOG("La fábrica %d ha fabricado %d vacunas y las ha repartido de la siguiente forma:\n", i, fabricas[i].totalVacunasFabricadas);
+        for(int c=0;c<NUM_CENTROS_VACUNACION;c++) {
+            LOG("Centro %d -> %d vacunas\n", c, fabricas[i].vacunasEntregadasPorCentro[c]);
+        }
+    }
 
     fclose(outfile);
     exit(0);
@@ -202,18 +249,23 @@ int getCenterWithMostDemand() {
 }
 
 void* supplier(void* args) {
-    int selfIdx = (*(int*)args)-1;
+    int selfIdx = (*(int*)args);
     int maxVacunas = config.totalHabitantes/NUM_FABRICAS;
     
-    // while(fabricas[selfIdx].totalVacunasFabricadas < maxVacunas) {
-    for(int xd=0;xd<3;xd++) {
+    while(fabricas[selfIdx].totalVacunasFabricadas < maxVacunas) {
+        printf("%s", fabricasColor[selfIdx]);
+        printf("\x1b[48;2;50;50;50mFábrica %d empieza a fabricar\x1b[0m\n", selfIdx+1);
+        printf("%s", CLEAR_COLOR);
         // Tiempo en fabricar
         sleep(randInt(config.minTiempoFabricacion, config.maxTiempoFabricacion));
         
         int numFab = randInt(config.minVacunasFabricadas, config.maxVacunasFabricadas);
         printf("%s", fabricasColor[selfIdx]);
-        LOG("Fábrica %d prepara %d vacunas\n", selfIdx+1, numFab);
+        LOG("Fábrica %d prepara %d vacunas, lleva %d total\n", selfIdx+1, numFab, fabricas[selfIdx].totalVacunasFabricadas);
         printf("%s", CLEAR_COLOR);
+
+        // Calcular cuantas vamos a repartir
+        // TODO: Repartir en base a demanda
 
         // Tiempo en repartir
         sleep(randInt(MIN_TIEMPO_REPARTO, config.maxTiempoReparto));
@@ -226,15 +278,60 @@ void* supplier(void* args) {
             vacunasRepartir = numFab/NUM_CENTROS_VACUNACION;
             if(i == centroExcedente) vacunasRepartir += numFab%NUM_CENTROS_VACUNACION;
 
+            pthread_mutex_lock(&centros[i].mutexFabricas);
+
             centros[i].numVacunas += vacunasRepartir;
             printf("%s", fabricasColor[selfIdx]);
             LOG("Fábrica %d entrega %d vacunas en el centro %d\n", selfIdx+1, vacunasRepartir, i+1);
             printf("%s", CLEAR_COLOR);
             
             fabricas[selfIdx].vacunasEntregadasPorCentro[i] += vacunasRepartir;
-            fabricas[selfIdx].totalVacunasFabricadas += numFab;
+            centros[i].totalVacunasRecibidas += vacunasRepartir;
+
+            pthread_mutex_unlock(&centros[i].mutexFabricas);
         }
+        fabricas[selfIdx].totalVacunasFabricadas += numFab;
     }
-    // }
+    printf("%s", fabricasColor[selfIdx]);
+    printf("\x1b[48;2;50;50;50mFábrica %d TERMINA de fabricar, total %d\x1b[0m\n", selfIdx+1, fabricas[selfIdx].totalVacunasFabricadas);
+    printf("%s", CLEAR_COLOR);
+    pthread_exit(0);
+}
+
+void* habitante(void* args) {
+    int selfIdx = (*(int*)args);
+
+    // Tiempo en enterarse
+    sleep(randInt(MIN_TIEMPO_REACCION, config.maxTiempoReaccion));
+
+    // Elige centro
+    int centroIdx = randInt(0, NUM_CENTROS_VACUNACION-1);
+    LOG("Habitante %d elige el centro %d para vacunarse\n", selfIdx+1, centroIdx+1);
+
+    // Tiempo en llegar al centro
+    sleep(randInt(MIN_TIEMPO_DESPLAZAMIENTO, config.maxTiempoDespl));
+    
+    centros[centroIdx].habitantesEnCola++;
+    
+    printf("\x1b[38;2;255;150;250m");
+    printf("Habitante %d esperando, son %d en la cola del centro %d\n", selfIdx+1, centros[centroIdx].habitantesEnCola, centroIdx+1);
+    printf("%s", CLEAR_COLOR);
+
+    
+    pthread_mutex_lock(&centros[centroIdx].mutex);
+
+    // Espera hasta que haya vacunas
+    while(centros[centroIdx].numVacunas <= 0) {
+        sleep(1);
+    }
+    
+    // Se vacuna
+    centros[centroIdx].numVacunas--;
+    centros[centroIdx].totalVacunados++;
+    centros[centroIdx].habitantesEnCola--;
+    LOG("Habitante %d vacunado en el centro %d\n", selfIdx+1, centroIdx+1);
+
+    pthread_mutex_unlock(&centros[centroIdx].mutex);
+
     pthread_exit(0);
 }

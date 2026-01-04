@@ -20,7 +20,7 @@
 
 #define CLEAR_COLOR "\x1b[0m"
 
-// TRIPLE BAKA!!!
+// REFERENCIA!!1!1
 char* fabricasColor[NUM_FABRICAS] = {
     "\x1b[38;2;240;209;75m", // NERU
     "\x1b[38;2;27;189;207m", // MIKU
@@ -236,7 +236,7 @@ int randInt(int min, int max) {
     return rand() % (max - min + 1) + min;
 }
 
-int getCenterWithMostDemand() {
+int getCenterWithLeastVaccines() {
     int minVacs = INT_MAX;
     int idx;
     for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
@@ -257,38 +257,84 @@ void* supplier(void* args) {
         sleep(randInt(config.minTiempoFabricacion, config.maxTiempoFabricacion));
         
         int numFab;
+        // Evitar que se pase
         if(maxVacunas - fabricas[selfIdx].totalVacunasFabricadas < config.minVacunasFabricadas) {
             numFab = maxVacunas - fabricas[selfIdx].totalVacunasFabricadas;
         }else {
             numFab = randInt(config.minVacunasFabricadas, config.maxVacunasFabricadas);
         }
+
+        // Evitar que se pase con el aleatorio
+        if(numFab + fabricas[selfIdx].totalVacunasFabricadas > maxVacunas) {
+            numFab = maxVacunas - fabricas[selfIdx].totalVacunasFabricadas;
+        }
+
         printf("%s", fabricasColor[selfIdx]);
         LOG("Fábrica %d prepara %d vacunas\n", selfIdx+1, numFab);
         printf("%s", CLEAR_COLOR);
 
         // Calcular cuantas vamos a repartir
         // TODO: Repartir en base a demanda
+        float totalEnCola = 0;
+        float totalReparto = 0;
+        int colas[NUM_CENTROS_VACUNACION]; // debug
+        int reparto[NUM_CENTROS_VACUNACION];
+        int centerExcedentIdx = getCenterWithLeastVaccines(); // Para cuando no haya nadie en cola en ninguno
+        for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+            totalEnCola += centros[i].habitantesEnCola;
+            colas[i] = centros[i].habitantesEnCola;
+        }
+        
+        for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+            if(totalEnCola != 0) {
+                reparto[i] = (int)(numFab*(centros[i].habitantesEnCola/totalEnCola));
+
+
+                // Si está cerca de la mitad, redondear hacia arriba
+                // if((numFab*(centros[i].habitantesEnCola/totalEnCola)) - reparto[i] >= 0.45 && (numFab*(centros[i].habitantesEnCola/totalEnCola)) - reparto[i] <= 0.55) {
+                //     reparto[i]++;
+                // }
+            }else {
+                // Si no hay gente en cola, se lo damos al que menos vacunas tenga
+                reparto[i] = numFab/NUM_CENTROS_VACUNACION;
+                if(i == centerExcedentIdx) reparto[i] += numFab%NUM_CENTROS_VACUNACION;
+            }
+            totalReparto += reparto[i];
+        }
+
+        if(totalReparto < numFab) {
+            reparto[centerExcedentIdx] += numFab - totalReparto;
+        }
+        
+        // Mantener un mínimo de 1 repartido por centro
+        // if(totalEnCola > NUM_CENTROS_VACUNACION) {
+        //     totalEnCola -= NUM_CENTROS_VACUNACION; 
+        //     numFab -= NUM_CENTROS_VACUNACION;
+        // }
 
         // Tiempo en repartir
         sleep(randInt(MIN_TIEMPO_REPARTO, config.maxTiempoReparto));
         
         // Reparto
         // TODO: Repartir de una forma mas mejor en base a la demanda
-        int centroExcedente = getCenterWithMostDemand();
-        int vacunasRepartir;
         for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
-            vacunasRepartir = numFab/NUM_CENTROS_VACUNACION;
-            if(i == centroExcedente) vacunasRepartir += numFab%NUM_CENTROS_VACUNACION;
+            // Saca el porcentaje de las vacunas fabricadas a darle a este centro (redondeado hacia arriba)
+            
+            printf("%s", fabricasColor[selfIdx]);
+            printf("\x1b[48;2;50;50;50mFábrica %d va a entregar %d vacunas en el centro %d (%.3f, %.3f, %d)\x1b[0m\n", selfIdx+1, reparto[i], 
+                i+1, colas[i]/totalEnCola, (numFab*(colas[i]/totalEnCola)), (int)totalEnCola);
+            printf("%s", CLEAR_COLOR);
+            
 
             pthread_mutex_lock(&centros[i].mutexFabricas);
 
-            centros[i].numVacunas += vacunasRepartir;
+            centros[i].numVacunas += reparto[i];
             printf("%s", fabricasColor[selfIdx]);
-            LOG("Fábrica %d entrega %d vacunas en el centro %d\n", selfIdx+1, vacunasRepartir, i+1);
+            LOG("Fábrica %d entrega %d vacunas en el centro %d\n", selfIdx+1, reparto[i], i+1);
             printf("%s", CLEAR_COLOR);
             
-            fabricas[selfIdx].vacunasEntregadasPorCentro[i] += vacunasRepartir;
-            centros[i].totalVacunasRecibidas += vacunasRepartir;
+            fabricas[selfIdx].vacunasEntregadasPorCentro[i] += reparto[i];
+            centros[i].totalVacunasRecibidas += reparto[i];
 
             pthread_mutex_unlock(&centros[i].mutexFabricas);
         }
@@ -312,9 +358,7 @@ void* habitante(void* args) {
     
     centros[centroIdx].habitantesEnCola++;
     
-    printf("\x1b[38;2;255;150;250m");
-    printf("Habitante %d esperando, son %d en la cola del centro %d\n", selfIdx+1, centros[centroIdx].habitantesEnCola, centroIdx+1);
-    printf("%s", CLEAR_COLOR);
+    printf("\x1b[38;2;255;150;250mHabitante %d esperando, son %d en la cola del centro %d\x1b[0m\n", selfIdx+1, centros[centroIdx].habitantesEnCola, centroIdx+1);
 
     
     pthread_mutex_lock(&centros[centroIdx].mutex);

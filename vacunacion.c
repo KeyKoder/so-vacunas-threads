@@ -168,16 +168,16 @@ int main(int argc, char** argv) {
 
     for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
         LOG("El centro %d ha recibido %d vacunas, ha vacunado a %d habitantes y le han sobrado %d vacunas\n",
-            i,
+            i+1,
             centros[i].totalVacunasRecibidas,
             centros[i].totalVacunados,
             centros[i].numVacunas);
     }
     
     for(int i=0;i<NUM_FABRICAS;i++) {
-        LOG("La fábrica %d ha fabricado %d vacunas y las ha repartido de la siguiente forma:\n", i, fabricas[i].totalVacunasFabricadas);
+        LOG("La fábrica %d ha fabricado %d vacunas y las ha repartido de la siguiente forma:\n", i+1, fabricas[i].totalVacunasFabricadas);
         for(int c=0;c<NUM_CENTROS_VACUNACION;c++) {
-            LOG("Centro %d -> %d vacunas\n", c, fabricas[i].vacunasEntregadasPorCentro[c]);
+            LOG("Centro %d -> %d vacunas\n", c+1, fabricas[i].vacunasEntregadasPorCentro[c]);
         }
     }
 
@@ -253,15 +253,17 @@ void* supplier(void* args) {
     int maxVacunas = config.totalHabitantes/NUM_FABRICAS;
     
     while(fabricas[selfIdx].totalVacunasFabricadas < maxVacunas) {
-        printf("%s", fabricasColor[selfIdx]);
-        printf("\x1b[48;2;50;50;50mFábrica %d empieza a fabricar\x1b[0m\n", selfIdx+1);
-        printf("%s", CLEAR_COLOR);
         // Tiempo en fabricar
         sleep(randInt(config.minTiempoFabricacion, config.maxTiempoFabricacion));
         
-        int numFab = randInt(config.minVacunasFabricadas, config.maxVacunasFabricadas);
+        int numFab;
+        if(maxVacunas - fabricas[selfIdx].totalVacunasFabricadas < config.minVacunasFabricadas) {
+            numFab = maxVacunas - fabricas[selfIdx].totalVacunasFabricadas;
+        }else {
+            numFab = randInt(config.minVacunasFabricadas, config.maxVacunasFabricadas);
+        }
         printf("%s", fabricasColor[selfIdx]);
-        LOG("Fábrica %d prepara %d vacunas, lleva %d total\n", selfIdx+1, numFab, fabricas[selfIdx].totalVacunasFabricadas);
+        LOG("Fábrica %d prepara %d vacunas\n", selfIdx+1, numFab);
         printf("%s", CLEAR_COLOR);
 
         // Calcular cuantas vamos a repartir
@@ -292,9 +294,6 @@ void* supplier(void* args) {
         }
         fabricas[selfIdx].totalVacunasFabricadas += numFab;
     }
-    printf("%s", fabricasColor[selfIdx]);
-    printf("\x1b[48;2;50;50;50mFábrica %d TERMINA de fabricar, total %d\x1b[0m\n", selfIdx+1, fabricas[selfIdx].totalVacunasFabricadas);
-    printf("%s", CLEAR_COLOR);
     pthread_exit(0);
 }
 

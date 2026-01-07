@@ -53,7 +53,6 @@ FILE* outfile;
 
 // returns whether it could read the config file or not
 int readConfig(char* filename);
-void printConfig();
 
 int randInt(int min, int max);
 
@@ -95,6 +94,8 @@ void* habitante(void* args);
 int main(int argc, char** argv) {
     char* infileName = defaultInfileName;
     char* outfileName = defaultOutfileName;
+    int numHab;
+    int i, t, c;
     
     if(argc > 3) {
         printf("Uso: %s [nombre_fichero_entrada] [nombre_fichero_salida]\n", argv[0]);
@@ -110,14 +111,27 @@ int main(int argc, char** argv) {
     }
 
     if(readConfig(infileName) != 0) {
-        fprintf(stderr, "Error reading config file: %s\n", infileName);
+        fprintf(stderr, "Error al leer el archivo de configuración: %s\n", infileName);
         exit(1);
     }
 
     outfile = fopen(outfileName, "w");
 
     LOG("VACUNACIÓN EN PANDEMIA: CONFIGURACIÓN INICIAL\n");
-    printConfig();
+    LOG("Habitantes: %d\nCentros de vacunación: %d\nFábricas: %d\nVacunados por tanda: %d\nVacunas iniciales en cada centro: %d\nVacunas totales por fábrica: %d\nMínimo número de vacunas fabricadas en cada tanda: %d\nMáximo número de vacunas fabricadas en cada tanda: %d\nTiempo mínimo de fabricación de una tanda de vacunas: %d\nTiempo máximo de fabricación de una tanda de vacunas: %d\nTiempo máximo de reparto de vacunas a los centros: %d\nTiempo máximo que un habitante tarda en ver que está citado para vacunarse: %d\nTiempo máximo de desplazamiento del habitante al centro de vacunación: %d\n", 
+        config.totalHabitantes, 
+        NUM_CENTROS_VACUNACION, 
+        NUM_FABRICAS, 
+        config.totalHabitantes/NUM_TANDAS, 
+        config.initialVacunas, 
+        config.totalHabitantes/NUM_FABRICAS, 
+        config.minVacunasFabricadas, 
+        config.maxVacunasFabricadas, 
+        config.minTiempoFabricacion, 
+        config.maxTiempoFabricacion, 
+        config.maxTiempoReparto, 
+        config.maxTiempoReaccion, 
+        config.maxTiempoDespl);
     LOG("\nPROCESO DE VACUNACIÓN\n");
 
     // Seed the random number generator
@@ -125,41 +139,41 @@ int main(int argc, char** argv) {
 
     habitantes = malloc(config.totalHabitantes/NUM_TANDAS*sizeof(pthread_t));
 
-    for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+    for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
         centros[i] = (vaccenter_t){};
         centros[i].numVacunas = config.initialVacunas;
         pthread_mutex_init(&centros[i].mutex, NULL);
         pthread_mutex_init(&centros[i].mutexFabricas, NULL);
     }
     
-    for(int i=0;i<NUM_FABRICAS;i++) {
+    for(i=0;i<NUM_FABRICAS;i++) {
         fabricas[i] = (vacsupplier_t){};
         pthread_create(&fabricas[i].tid, NULL, supplier, (void*)&i);
     }
 
-    int numHab = -1;
-    for(int t=0;t<NUM_TANDAS;t++) {
-        for(int i=0;i<config.totalHabitantes/NUM_TANDAS;i++) {
+    numHab = -1;
+    for(t=0;t<NUM_TANDAS;t++) {
+        for(i=0;i<config.totalHabitantes/NUM_TANDAS;i++) {
             numHab++;
             pthread_create(habitantes+i, NULL, habitante, (void*)&numHab);
         }
-        for(int i=0;i<config.totalHabitantes/NUM_TANDAS;i++) {
+        for(i=0;i<config.totalHabitantes/NUM_TANDAS;i++) {
             pthread_join(habitantes[i], NULL);
         }
     }
 
-    for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+    for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
         pthread_mutex_destroy(&centros[i].mutex);
         pthread_mutex_destroy(&centros[i].mutexFabricas);
     }
     
-    for(int i=0;i<NUM_FABRICAS;i++) {
+    for(i=0;i<NUM_FABRICAS;i++) {
         pthread_join(fabricas[i].tid, NULL);
     }
 
     LOG("Vacunación finalizada\n");
 
-    for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+    for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
         LOG("El centro %d ha recibido %d vacunas, ha vacunado a %d habitantes y le han sobrado %d vacunas\n",
             i+1,
             centros[i].totalVacunasRecibidas,
@@ -167,9 +181,9 @@ int main(int argc, char** argv) {
             centros[i].numVacunas);
     }
     
-    for(int i=0;i<NUM_FABRICAS;i++) {
+    for(i=0;i<NUM_FABRICAS;i++) {
         LOG("La fábrica %d ha fabricado %d vacunas y las ha repartido de la siguiente forma:\n", i+1, fabricas[i].totalVacunasFabricadas);
-        for(int c=0;c<NUM_CENTROS_VACUNACION;c++) {
+        for(c=0;c<NUM_CENTROS_VACUNACION;c++) {
             LOG("Centro %d -> %d vacunas\n", c+1, fabricas[i].vacunasEntregadasPorCentro[c]);
         }
     }
@@ -193,7 +207,7 @@ int readConfig(char* filename) {
     while(fgets(str, MAX_LINE_LENGTH, file) != NULL) {
         // Check if line fails to parse, using the fact that atoi returns 0 if it cant parse str into an int and checking if the str begins with '0'
         if(atoi(str) == 0 && str[0] != '0') {
-            fprintf(stderr, "Cannot parse int at line %d \"%.*s\"\n", fieldIdx+1, (int)strlen(str)-1, str);
+            fprintf(stderr, "Error al parsear el int en la línea %d \"%.*s\"\n", fieldIdx+1, (int)strlen(str)-1, str);
             fclose(file);
             return 1;
         }
@@ -208,31 +222,14 @@ int readConfig(char* filename) {
     return 0;
 }
 
-void printConfig() {
-    LOG("Habitantes: %d\nCentros de vacunación: %d\nFábricas: %d\nVacunados por tanda: %d\nVacunas iniciales en cada centro: %d\nVacunas totales por fábrica: %d\nMínimo número de vacunas fabricadas en cada tanda: %d\nMáximo número de vacunas fabricadas en cada tanda: %d\nTiempo mínimo de fabricación de una tanda de vacunas: %d\nTiempo máximo de fabricación de una tanda de vacunas: %d\nTiempo máximo de reparto de vacunas a los centros: %d\nTiempo máximo que un habitante tarda en ver que está citado para vacunarse: %d\nTiempo máximo de desplazamiento del habitante al centro de vacunación: %d\n", 
-        config.totalHabitantes, 
-        NUM_CENTROS_VACUNACION, 
-        NUM_FABRICAS, 
-        config.totalHabitantes/NUM_TANDAS, 
-        config.initialVacunas, 
-        config.totalHabitantes/NUM_FABRICAS, 
-        config.minVacunasFabricadas, 
-        config.maxVacunasFabricadas, 
-        config.minTiempoFabricacion, 
-        config.maxTiempoFabricacion, 
-        config.maxTiempoReparto, 
-        config.maxTiempoReaccion, 
-        config.maxTiempoDespl);
-}
-
 int randInt(int min, int max) {
     return rand() % (max - min + 1) + min;
 }
 
 int getCenterWithLeastVaccines() {
     int minVacs = INT_MAX;
-    int idx;
-    for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+    int idx, i;
+    for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
         if(minVacs > centros[i].numVacunas) {
             minVacs = centros[i].numVacunas;
             idx = i;
@@ -244,12 +241,20 @@ int getCenterWithLeastVaccines() {
 void* supplier(void* args) {
     int selfIdx = (*(int*)args);
     int maxVacunas = config.totalHabitantes/NUM_FABRICAS;
+
+    int numFab;
+
+    float totalEnCola;
+    float totalReparto;
+    int reparto[NUM_CENTROS_VACUNACION];
+    int centerExcedentIdx;
+    int i;
     
     while(fabricas[selfIdx].totalVacunasFabricadas < maxVacunas) {
         // Tiempo en fabricar
         sleep(randInt(config.minTiempoFabricacion, config.maxTiempoFabricacion));
         
-        int numFab;
+        
         // Evitar que se pase
         if(maxVacunas - fabricas[selfIdx].totalVacunasFabricadas < config.minVacunasFabricadas) {
             numFab = maxVacunas - fabricas[selfIdx].totalVacunasFabricadas;
@@ -267,15 +272,14 @@ void* supplier(void* args) {
         printf("%s", CLEAR_COLOR);
 
         // Calcular cuantas vamos a repartir
-        float totalEnCola = 0;
-        float totalReparto = 0;
-        int reparto[NUM_CENTROS_VACUNACION];
-        int centerExcedentIdx = getCenterWithLeastVaccines(); // Para cuando no haya nadie en cola en ninguno
-        for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+        totalEnCola = 0;
+        totalReparto = 0;
+        centerExcedentIdx = getCenterWithLeastVaccines(); // Para cuando no haya nadie en cola en ninguno
+        for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
             totalEnCola += centros[i].habitantesEnCola;
         }
         
-        for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+        for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
             if(totalEnCola != 0) {
                 reparto[i] = (int)(numFab*(centros[i].habitantesEnCola/totalEnCola));
             }else {
@@ -294,7 +298,7 @@ void* supplier(void* args) {
         sleep(randInt(MIN_TIEMPO_REPARTO, config.maxTiempoReparto));
         
         // Reparto
-        for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
+        for(i=0;i<NUM_CENTROS_VACUNACION;i++) {
             pthread_mutex_lock(&centros[i].mutexFabricas);
 
             centros[i].numVacunas += reparto[i];
@@ -314,12 +318,13 @@ void* supplier(void* args) {
 
 void* habitante(void* args) {
     int selfIdx = (*(int*)args);
+    int centroIdx;
 
     // Tiempo en enterarse
     sleep(randInt(MIN_TIEMPO_REACCION, config.maxTiempoReaccion));
 
     // Elige centro
-    int centroIdx = randInt(0, NUM_CENTROS_VACUNACION-1);
+    centroIdx = randInt(0, NUM_CENTROS_VACUNACION-1);
     LOG("Habitante %d elige el centro %d para vacunarse\n", selfIdx+1, centroIdx+1);
 
     // Tiempo en llegar al centro

@@ -57,7 +57,6 @@ void printConfig();
 
 int randInt(int min, int max);
 
-// TODO: Create structs(?) for vac. centers and suppliers
 struct VacCenter {
     pthread_t tid;
 
@@ -90,7 +89,6 @@ vacsupplier_t fabricas[NUM_FABRICAS];
 
 pthread_t* habitantes;
 
-// TODO: Implement producer-consumer logic
 void* supplier(void* args);
 void* habitante(void* args);
 
@@ -111,8 +109,6 @@ int main(int argc, char** argv) {
         outfileName = argv[2];
     }
 
-    // printf("infile: %s\noutfile: %s\n\n", infileName, outfileName);
-
     if(readConfig(infileName) != 0) {
         fprintf(stderr, "Error reading config file: %s\n", infileName);
         exit(1);
@@ -129,13 +125,11 @@ int main(int argc, char** argv) {
 
     habitantes = malloc(config.totalHabitantes/NUM_TANDAS*sizeof(pthread_t));
 
-
     for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
         centros[i] = (vaccenter_t){};
         centros[i].numVacunas = config.initialVacunas;
         pthread_mutex_init(&centros[i].mutex, NULL);
         pthread_mutex_init(&centros[i].mutexFabricas, NULL);
-        // pthread_create(&centros[i].tid, NULL, centro, &i);
     }
     
     for(int i=0;i<NUM_FABRICAS;i++) {
@@ -155,7 +149,6 @@ int main(int argc, char** argv) {
     }
 
     for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
-        // pthread_join(centros[i].tid, NULL);
         pthread_mutex_destroy(&centros[i].mutex);
         pthread_mutex_destroy(&centros[i].mutexFabricas);
     }
@@ -200,7 +193,7 @@ int readConfig(char* filename) {
     while(fgets(str, MAX_LINE_LENGTH, file) != NULL) {
         // Check if line fails to parse, using the fact that atoi returns 0 if it cant parse str into an int and checking if the str begins with '0'
         if(atoi(str) == 0 && str[0] != '0') {
-            printf("Cannot parse int at line %d \"%.*s\"\n", fieldIdx+1, (int)strlen(str)-1, str);
+            fprintf(stderr, "Cannot parse int at line %d \"%.*s\"\n", fieldIdx+1, (int)strlen(str)-1, str);
             fclose(file);
             return 1;
         }
@@ -274,26 +267,17 @@ void* supplier(void* args) {
         printf("%s", CLEAR_COLOR);
 
         // Calcular cuantas vamos a repartir
-        // TODO: Repartir en base a demanda
         float totalEnCola = 0;
         float totalReparto = 0;
-        int colas[NUM_CENTROS_VACUNACION]; // debug
         int reparto[NUM_CENTROS_VACUNACION];
         int centerExcedentIdx = getCenterWithLeastVaccines(); // Para cuando no haya nadie en cola en ninguno
         for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
             totalEnCola += centros[i].habitantesEnCola;
-            colas[i] = centros[i].habitantesEnCola;
         }
         
         for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
             if(totalEnCola != 0) {
                 reparto[i] = (int)(numFab*(centros[i].habitantesEnCola/totalEnCola));
-
-
-                // Si está cerca de la mitad, redondear hacia arriba
-                // if((numFab*(centros[i].habitantesEnCola/totalEnCola)) - reparto[i] >= 0.45 && (numFab*(centros[i].habitantesEnCola/totalEnCola)) - reparto[i] <= 0.55) {
-                //     reparto[i]++;
-                // }
             }else {
                 // Si no hay gente en cola, se lo damos al que menos vacunas tenga
                 reparto[i] = numFab/NUM_CENTROS_VACUNACION;
@@ -305,27 +289,12 @@ void* supplier(void* args) {
         if(totalReparto < numFab) {
             reparto[centerExcedentIdx] += numFab - totalReparto;
         }
-        
-        // Mantener un mínimo de 1 repartido por centro
-        // if(totalEnCola > NUM_CENTROS_VACUNACION) {
-        //     totalEnCola -= NUM_CENTROS_VACUNACION; 
-        //     numFab -= NUM_CENTROS_VACUNACION;
-        // }
 
         // Tiempo en repartir
         sleep(randInt(MIN_TIEMPO_REPARTO, config.maxTiempoReparto));
         
         // Reparto
-        // TODO: Repartir de una forma mas mejor en base a la demanda
         for(int i=0;i<NUM_CENTROS_VACUNACION;i++) {
-            // Saca el porcentaje de las vacunas fabricadas a darle a este centro (redondeado hacia arriba)
-            
-            printf("%s", fabricasColor[selfIdx]);
-            printf("\x1b[48;2;50;50;50mFábrica %d va a entregar %d vacunas en el centro %d (%.3f, %.3f, %d)\x1b[0m\n", selfIdx+1, reparto[i], 
-                i+1, colas[i]/totalEnCola, (numFab*(colas[i]/totalEnCola)), (int)totalEnCola);
-            printf("%s", CLEAR_COLOR);
-            
-
             pthread_mutex_lock(&centros[i].mutexFabricas);
 
             centros[i].numVacunas += reparto[i];
@@ -357,9 +326,6 @@ void* habitante(void* args) {
     sleep(randInt(MIN_TIEMPO_DESPLAZAMIENTO, config.maxTiempoDespl));
     
     centros[centroIdx].habitantesEnCola++;
-    
-    printf("\x1b[38;2;255;150;250mHabitante %d esperando, son %d en la cola del centro %d\x1b[0m\n", selfIdx+1, centros[centroIdx].habitantesEnCola, centroIdx+1);
-
     
     pthread_mutex_lock(&centros[centroIdx].mutex);
 

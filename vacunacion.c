@@ -188,6 +188,8 @@ int main(int argc, char** argv) {
         }
     }
 
+    free(habitantes);
+
     fclose(outfile);
     exit(0);
 }
